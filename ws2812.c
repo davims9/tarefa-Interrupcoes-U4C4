@@ -13,10 +13,11 @@
 #define LED_PIN_RED 13
 #define BUTTON_A 5
 #define BUTTON_B 6
-#define DEBOUNCE_TIME_MS 50
+#define DEBOUNCE_TIME_MS 200 // Tempo de debounce
 
 int contador_numero_a_exibir = 0;
-absolute_time_t last_interrupt_time = {0};
+absolute_time_t last_interrupt_time_a = {0};
+absolute_time_t last_interrupt_time_b = {0};
 
 // Buffer para armazenar quais LEDs estão ligados matriz 5x5
 bool led_buffer[NUM_PIXELS];
@@ -30,24 +31,38 @@ static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
     return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
 }
 
-bool debouncing() {
+bool debouncing(absolute_time_t* last_interrupt_time) {
     absolute_time_t current_time = get_absolute_time();
-    if (absolute_time_diff_us(last_interrupt_time, current_time) < DEBOUNCE_TIME_MS * 1000) {
+    if (absolute_time_diff_us(*last_interrupt_time, current_time) < DEBOUNCE_TIME_MS * 1000) {
         return false;
     } else {
-        last_interrupt_time = current_time;
+        *last_interrupt_time = current_time;
         return true;
     }
 }
 
+//Função para quando pressionar botões A ou B
 void gpio_irq_handler(uint gpio, uint32_t events) {
-
+    if (gpio == BUTTON_A && debouncing(&last_interrupt_time_a)) {
+        contador_numero_a_exibir++;
+        if (contador_numero_a_exibir > 9) {
+            contador_numero_a_exibir = 0;
+        }
+        printf("Botão A pressionado: %d\n", contador_numero_a_exibir);
+    } else if (gpio == BUTTON_B && debouncing(&last_interrupt_time_b)) {
+        contador_numero_a_exibir--;
+        if (contador_numero_a_exibir < 0) {
+            contador_numero_a_exibir = 9;
+        }
+        printf("Botão B pressionado: %d\n", contador_numero_a_exibir);
+    }
 }
 
-void set_one_led(int numExibir) {
-    uint8_t r = (numExibir % 2 == 0) ? 255 : 0;
+//Função para ligar os leds de acordo com o numero chamado
+void ligarMatrizLeds(int numExibir) {
+    uint8_t r = 0;
     uint8_t g = (numExibir % 2 != 0) ? 255 : 0;
-    uint8_t b = 0;
+    uint8_t b = (numExibir % 2 == 0) ? 255 : 0;
 
     uint32_t color = urgb_u32(r, g, b);
 
@@ -64,10 +79,6 @@ void set_one_led(int numExibir) {
     }
 }
 
-void ligarMatrizLeds() {
-    set_one_led(contador_numero_a_exibir);
-}
-
 void blinkarLedVermelho() {
     static absolute_time_t last_blink_time = {0};
     static bool led_on = false;
@@ -78,11 +89,8 @@ void blinkarLedVermelho() {
         led_on = !led_on;
         gpio_put(LED_PIN_RED, led_on);
     }
-
-    // Pequeno atraso para garantir que o LED pisque 5 vezes por segundo
     sleep_ms(100);
 }
-
 
 int main() {   
     stdio_init_all();
@@ -106,8 +114,10 @@ int main() {
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 
+    printf("Sistema inicializado. Pressione os botões para testar.\n");
+
     while (1) {   
-        ligarMatrizLeds();
+        ligarMatrizLeds(contador_numero_a_exibir);
         blinkarLedVermelho();
     }
 
