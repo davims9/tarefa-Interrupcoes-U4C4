@@ -89,7 +89,7 @@ void blinkarLedVermelho() {
         led_on = !led_on;
         gpio_put(LED_PIN_RED, led_on);
     }
-    sleep_ms(100);
+    sleep_ms(10);
 }
 
 int main() {   
